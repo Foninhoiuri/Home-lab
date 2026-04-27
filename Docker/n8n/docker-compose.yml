@@ -42,11 +42,11 @@ redis:
       restart_policy:
         condition: on-failure
         delay: 5s
-        
-  # ==========================================
-  # 3. N8N MAIN (Interface e Webhooks)
-  # ==========================================
-  n8n:
+
+# ==========================================
+# 3. N8N MAIN (Interface e Webhooks)
+# ==========================================
+n8n:
     image: docker.n8n.io/n8nio/n8n:2.17.7
     ports:
       - target: 5678
