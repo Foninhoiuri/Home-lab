@@ -56,6 +56,9 @@ services:
       
       # --- Configurações de sistema do n8n ---
       - N8N_PROTOCOL=http # Força o uso de HTTP puro, já que removemos o proxy (Traefik/HTTPS) por enquanto
+      - N8N_SECURE_COOKIE=false
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
     networks:
       # Coloca o n8n na MESMA rede do banco de dados, caso contrário, eles não se enxergam
       - n8n_internal
