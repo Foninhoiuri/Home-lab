@@ -16,11 +16,11 @@ services:
       - n8n_internal
     deploy:
       mode: replicated
-      endpoint_mode: dnsrr
+      endpoint_mode: dnsrr # CRÍTICO: Evita o atraso de roteamento interno do Swarm, conectando direto.
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - node.role == manager # Fixa o banco no nó principal para não perder a referência do disco no Proxmox.
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -28,13 +28,13 @@ services:
   # ==========================================
   # 2. REDIS (O Mensageiro da Fila)
   # ==========================================
-redis:
+  redis: # <-- CORRIGIDO: Agora alinhado corretamente dentro de 'services'
     image: redis:7-alpine
     networks:
       - n8n_internal
     deploy:
       mode: replicated
-      endpoint_mode: dnsrr # <--- ADICIONE ESTA LINHA AQUI
+      endpoint_mode: dnsrr # CRÍTICO: Resolve aquele erro de "Lost Redis connection" do n8n.
       replicas: 1
       placement:
         constraints:
@@ -43,12 +43,13 @@ redis:
         condition: on-failure
         delay: 5s
 
-# ==========================================
-# 3. N8N MAIN (Interface e Webhooks)
-# ==========================================
-n8n:
+  # ==========================================
+  # 3. N8N MAIN (Interface e Webhooks)
+  # ==========================================
+  n8n: # <-- CORRIGIDO: Agora alinhado corretamente dentro de 'services'
     image: docker.n8n.io/n8nio/n8n:2.17.7
     ports:
+      # MODO HOST: Fura o bloqueio do firewall/Ingress e expõe a porta direto no IP da rede local.
       - target: 5678
         published: 5678
         protocol: tcp
@@ -69,11 +70,11 @@ n8n:
       
       # --- Segurança e Permissões ---
       - N8N_PROTOCOL=http
-      - N8N_SECURE_COOKIE=false # Resolve o erro da URL insegura
-      - NODE_FUNCTION_ALLOW_BUILTIN=* # Libera bibliotecas JS
-      - NODE_FUNCTION_ALLOW_EXTERNAL=* # Libera pacotes externos
+      - N8N_SECURE_COOKIE=false # PERMITE LOGIN: Desativa a exigência de HTTPS/SSL no seu ambiente local.
+      - NODE_FUNCTION_ALLOW_BUILTIN=* # LIBERDADE DE CÓDIGO: Permite usar bibliotecas nativas do Node.js.
+      - NODE_FUNCTION_ALLOW_EXTERNAL=* # LIBERDADE DE CÓDIGO: Permite importar pacotes externos (npm).
       
-      # IMPORTANTE: A Encryption Key deve ser IGUAL no Main e no Worker
+      # IMPORTANTE: A chave DEVE ser idêntica no Main e no Worker para as credenciais funcionarem.
       - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui
       
     networks:
@@ -85,6 +86,7 @@ n8n:
         constraints:
           - node.role == manager
       restart_policy:
+        # SEGURA A RACE CONDITION: Se o banco demorar a ligar, o n8n tenta de novo ao invés de morrer.
         condition: any
         delay: 10s
 
@@ -93,9 +95,9 @@ n8n:
   # ==========================================
   n8n-worker:
     image: docker.n8n.io/n8nio/n8n:2.17.7
-    command: worker # Comando que transforma o n8n em um operário
+    command: worker # MUDA O COMPORTAMENTO: Transforma este container em um operário sem interface gráfica.
     environment:
-      # Repetir as configurações do Main para que o Worker saiba onde se conectar
+      # O Worker é um "clone" das configurações do Main para conseguir acessar a mesma fila e banco.
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
@@ -107,25 +109,25 @@ n8n:
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
       
-      - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui # IGUAL ao Main
+      - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui # EXATAMENTE A MESMA CHAVE DO MAIN
       - NODE_FUNCTION_ALLOW_BUILTIN=*
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
     networks:
       - n8n_internal
     deploy:
       mode: replicated
-      # No futuro, você pode aumentar para 2 ou 3 para ter mais poder de fogo
+      # ESCALABILIDADE: Quando tiver fluxos pesados rodando em paralelo, basta subir este número.
       replicas: 1 
       restart_policy:
         condition: any
         delay: 10s
 
 # ==========================================
-# 3. RECURSOS
+# 5. RECURSOS
 # ==========================================
 volumes:
-  n8n_db_data:
+  n8n_db_data: # O volume persistente gerenciado pelo Docker.
 
 networks:
   n8n_internal:
-    driver: overlay
+    driver: overlay # Essencial para o Swarm criar o túnel de comunicação entre os containers.
