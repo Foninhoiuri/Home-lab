@@ -21,7 +21,7 @@ services:
     deploy:
       # Bloco de configurações exclusivas do orquestrador Docker Swarm
       mode: replicated
-      endpoint_mode: dnsrr
+      endpoint_mode: dnsrr # MANTIDO: Resolve o atraso de DNS interno para o banco
       replicas: 1 # Queremos apenas 1 instância do banco rodando
       placement:
         constraints:
@@ -61,7 +61,7 @@ services:
       - n8n_internal
     deploy:
       mode: replicated
-      endpoint_mode: dnsrr
+      # A linha 'endpoint_mode: dnsrr' foi removida daqui para não dar conflito com a porta exposta
       replicas: 1
       placement:
         constraints:
