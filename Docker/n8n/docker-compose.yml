@@ -28,12 +28,13 @@ services:
   # ==========================================
   # 2. REDIS (O Mensageiro da Fila)
   # ==========================================
-  redis:
+redis:
     image: redis:7-alpine
     networks:
       - n8n_internal
     deploy:
       mode: replicated
+      endpoint_mode: dnsrr # <--- ADICIONE ESTA LINHA AQUI
       replicas: 1
       placement:
         constraints:
@@ -41,7 +42,7 @@ services:
       restart_policy:
         condition: on-failure
         delay: 5s
-
+        
   # ==========================================
   # 3. N8N MAIN (Interface e Webhooks)
   # ==========================================
