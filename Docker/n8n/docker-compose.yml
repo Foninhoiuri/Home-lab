@@ -1,98 +1,130 @@
-version: '3.8' # Versão do formato do compose, compatível com as funções avançadas do Swarm
+version: '3.8'
 
 services:
   # ==========================================
   # 1. BANCO DE DADOS POSTGRESQL
   # ==========================================
   postgres:
-    image: postgres:16-alpine # Usa uma versão leve (alpine) do Postgres 16 para consumir menos RAM
+    image: postgres:16-alpine
     environment:
-      # Credenciais e nome do banco que será criado automaticamente no primeiro uso
       - POSTGRES_USER=n8n_user
       - POSTGRES_PASSWORD=sua_senha_segura
       - POSTGRES_DB=n8n_database
     volumes:
-      # Mapeia a pasta interna do container para um volume gerenciado pelo Docker.
-      # Isso garante que os dados não evaporem se o container for deletado ou reiniciado.
       - n8n_db_data:/var/lib/postgresql/data
     networks:
-      # Conecta o banco à nossa rede isolada para se comunicar com o n8n
       - n8n_internal
     deploy:
-      # Bloco de configurações exclusivas do orquestrador Docker Swarm
       mode: replicated
-      endpoint_mode: dnsrr # MANTIDO: Resolve o atraso de DNS interno para o banco
-      replicas: 1 # Queremos apenas 1 instância do banco rodando
+      endpoint_mode: dnsrr
+      replicas: 1
       placement:
         constraints:
-          # REGRA DE OURO DO SWARM PARA BANCO DE DADOS:
-          # Obriga o banco a rodar SEMPRE no seu nó principal (manager).
-          # Por que? O volume "n8n_db_data" fica salvo fisicamente no disco da VM onde ele rodar a primeira vez.
-          # Se o Swarm movesse o banco para outro nó do Proxmox, a pasta estaria vazia lá e o banco quebraria.
-          - node.role == manager 
+          - node.role == manager
       restart_policy:
-        # Se o processo interno do banco falhar, o Swarm espera 5 segundos antes de tentar reerguê-lo
         condition: on-failure
         delay: 5s
 
   # ==========================================
-  # 2. APLICAÇÃO N8N
+  # 2. REDIS (O Mensageiro da Fila)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    networks:
+      - n8n_internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+  # ==========================================
+  # 3. N8N MAIN (Interface e Webhooks)
   # ==========================================
   n8n:
-    image: docker.n8n.io/n8nio/n8n:2.17.7 # Usa a imagem oficial e atualizada do n8n
+    image: docker.n8n.io/n8nio/n8n:2.17.7
     ports:
       - target: 5678
         published: 5678
         protocol: tcp
         mode: host
     environment:
-      # --- Configurações para avisar ao n8n onde está o banco de dados ---
+      # --- Banco de Dados ---
       - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_HOST=postgres # O host é exatamente o nome do serviço declarado lá em cima
-      - DB_POSTGRESDB_PORT=5432 # Porta padrão de comunicação do Postgres
-      - DB_POSTGRESDB_DATABASE=n8n_database # Mesmo nome configurado no bloco do postgres
-      - DB_POSTGRESDB_USER=n8n_user # Mesmo usuário configurado no bloco do postgres
-      - DB_POSTGRESDB_PASSWORD=sua_senha_segura # Mesma senha configurada no bloco do postgres
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_database
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=sua_senha_segura
       
-      # --- Configurações de sistema do n8n ---
-      - N8N_PROTOCOL=http # Força o uso de HTTP puro, já que removemos o proxy (Traefik/HTTPS) por enquanto
-      - N8N_SECURE_COOKIE=false
-      - NODE_FUNCTION_ALLOW_BUILTIN=*
-      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+      # --- Modo Fila (Queue Mode) ---
+      - N8N_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      
+      # --- Segurança e Permissões ---
+      - N8N_PROTOCOL=http
+      - N8N_SECURE_COOKIE=false # Resolve o erro da URL insegura
+      - NODE_FUNCTION_ALLOW_BUILTIN=* # Libera bibliotecas JS
+      - NODE_FUNCTION_ALLOW_EXTERNAL=* # Libera pacotes externos
+      
+      # IMPORTANTE: A Encryption Key deve ser IGUAL no Main e no Worker
+      - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui
+      
     networks:
-      # Coloca o n8n na MESMA rede do banco de dados, caso contrário, eles não se enxergam
       - n8n_internal
     deploy:
       mode: replicated
-      # A linha 'endpoint_mode: dnsrr' foi removida daqui para não dar conflito com a porta exposta
       replicas: 1
       placement:
         constraints:
-          # Mantém o n8n no nó manager. Não é tão obrigatório quanto o banco, 
-          # mas facilita o rastreio durante testes iniciais.
           - node.role == manager
       restart_policy:
-        # SOLUÇÃO DA "RACE CONDITION" (O erro de Connection Refused):
-        # O n8n é mais rápido para ligar que o banco. Se ele tentar conectar no milissegundo 
-        # em que o banco ainda está gerando as tabelas, ele toma erro e desliga.
-        # Essa regra avisa o Swarm: "Se o n8n morrer, espere 10 segundos e tente de novo (até 10 vezes)".
-        # Isso dá tempo de sobra para o Postgres terminar de se preparar e o n8n plugar com sucesso na segunda tentativa.
         condition: any
         delay: 10s
-        max_attempts: 10
-        window: 120s
+
+  # ==========================================
+  # 4. N8N WORKER (O Executor de Tarefas)
+  # ==========================================
+  n8n-worker:
+    image: docker.n8n.io/n8nio/n8n:2.17.7
+    command: worker # Comando que transforma o n8n em um operário
+    environment:
+      # Repetir as configurações do Main para que o Worker saiba onde se conectar
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_database
+      - DB_POSTGRESDB_USER=n8n_user
+      - DB_POSTGRESDB_PASSWORD=sua_senha_segura
+      
+      - N8N_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      
+      - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui # IGUAL ao Main
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+    networks:
+      - n8n_internal
+    deploy:
+      mode: replicated
+      # No futuro, você pode aumentar para 2 ou 3 para ter mais poder de fogo
+      replicas: 1 
+      restart_policy:
+        condition: any
+        delay: 10s
 
 # ==========================================
-# 3. DECLARAÇÃO DE RECURSOS DO SISTEMA
+# 3. RECURSOS
 # ==========================================
 volumes:
-  # Avisa ao Swarm para criar e gerenciar este volume físico no servidor
   n8n_db_data:
 
 networks:
   n8n_internal:
-    # A MÁGICA DO SWARM: O driver 'overlay'.
-    # Em um Docker comum, usamos 'bridge'. No Swarm, o 'overlay' cria um túnel virtual.
-    # Ele permite que containers conversem entre si como se estivessem no mesmo computador, 
-    # mesmo que estejam rodando em máquinas virtuais completamente diferentes dentro do seu Proxmox.
     driver: overlay
