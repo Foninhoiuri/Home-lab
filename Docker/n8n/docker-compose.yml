@@ -41,10 +41,10 @@ services:
   n8n:
     image: docker.n8n.io/n8nio/n8n:2.17.7 # Usa a imagem oficial e atualizada do n8n
     ports:
-      # Mapeia a porta 5678 da sua rede local para a 5678 do container.
-      # Graças ao "Routing Mesh" do Swarm, você pode digitar o IP de QUALQUER nó 
-      # do seu cluster no navegador que ele enviará o acesso para o nó certo que está rodando o n8n.
-      - "5678:5678"
+      - target: 5678
+        published: 5678
+        protocol: tcp
+        mode: host
     environment:
       # --- Configurações para avisar ao n8n onde está o banco de dados ---
       - DB_TYPE=postgresdb
