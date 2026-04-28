@@ -47,7 +47,7 @@ services:
   # 3. EVOLUTION API GO
   # ==========================================
   evolution-api:
-    image: evolutionapi/evolution-go:latest
+    image: evoapicloud/evolution-go:0.7.1
     ports:
       - target: 8080
         published: 8080
