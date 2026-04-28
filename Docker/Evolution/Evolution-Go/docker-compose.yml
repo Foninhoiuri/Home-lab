@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # 1. BANCO DE DADOS POSTGRES (Exclusivo Evo)
+  # ==========================================
+  postgres-evo:
+    image: postgres:16-alpine
+    environment:
+      # Puxa os dados do arquivo .env
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - evo_db_data:/var/lib/postgresql/data
+    networks:
+      - evolution_internal
+    deploy:
+      mode: replicated
+      endpoint_mode: dnsrr
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+  # ==========================================
+  # 2. REDIS (Exclusivo Evo)
+  # ==========================================
+  redis-evo:
+    image: redis:7-alpine
+    networks:
+      - evolution_internal
+    deploy:
+      mode: replicated
+      endpoint_mode: dnsrr
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+
+  # ==========================================
+  # 3. EVOLUTION API GO
+  # ==========================================
+  evolution-api:
+    image: evolutionapi/evolution-go:latest
+    ports:
+      - target: 8080
+        published: 8080
+        protocol: tcp
+        mode: host
+    environment:
+      # --- Configurações Básicas ---
+      - SERVER_URL=${SERVER_URL}
+      - AUTHENTICATION_API_KEY=${API_KEY}
+      - TZ=${TIMEZONE}
+
+      # --- Conexão com Banco de Dados ---
+      # Monta a URL de conexão usando as variáveis do .env
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://${DB_USER}:${DB_PASS}@postgres-evo:5432/${DB_NAME}?sslmode=disable
+      
+      # --- Conexão com Redis ---
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis-evo:6379/1
+      - WEBSOCKET_REDIS_ENABLED=true
+      - WEBSOCKET_REDIS_URI=redis://redis-evo:6379/1
+      - WEBHOOK_GLOBAL_ENABLED=false 
+      
+    volumes:
+      - evo_instances_data:/evolution/instances
+    networks:
+      - evolution_internal
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 10s
+
+volumes:
+  evo_db_data:
+  evo_instances_data:
+
+networks:
+  evolution_internal:
+    driver: overlay
