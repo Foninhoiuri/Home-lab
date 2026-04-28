@@ -2,14 +2,14 @@ version: '3.8'
 
 services:
   # ==========================================
-  # 1. BANCO DE DADOS POSTGRES (Exclusivo Evo)
+  # 1. BANCO DE DADOS POSTGRES
   # ==========================================
   postgres-evo:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_USER=evo_user
-      - POSTGRES_PASSWORD=senha_banco_evo
-      - POSTGRES_DB=evolution_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=evogo_auth
     volumes:
       - evo_db_data:/var/lib/postgresql/data
     networks:
@@ -26,7 +26,7 @@ services:
         delay: 5s
 
   # ==========================================
-  # 2. REDIS (Exclusivo Evo)
+  # 2. REDIS (Cache de Alta Performance)
   # ==========================================
   redis-evo:
     image: redis:7-alpine
@@ -47,36 +47,41 @@ services:
   # 3. EVOLUTION API GO
   # ==========================================
   evolution-api:
-    image: evoapicloud/evolution-go:0.7.1 # <-- Imagem e repositório atualizados!
+    image: evoapicloud/evolution-go:0.7.1
     ports:
       - target: 8080
         published: 8080
         protocol: tcp
         mode: host
     environment:
-      # --- Configurações Básicas ---
-      - SERVER_URL=http://192.168.1.200:8080
+      # --- Configurações de Servidor ---
       - SERVER_PORT=8080
       - CLIENT_NAME=evolution
-      - TZ=America/Sao_Paulo
-
-      # --- Autenticação (O que estava a faltar) ---
+      - GLOBAL_API_KEY=sua-chave-secura-aqui
       - AUTHENTICATION_TYPE=apikey
-      - AUTHENTICATION_API_KEY=sua_senha_super_secreta_aqui
-      - GLOBAL_API_KEY=sua_senha_super_secreta_aqui
-
-      # --- Conexão com Banco de Dados (Padrão Unificado) ---
-      - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://evo_user:senha_banco_evo@postgres-evo:5432/evolution_db?sslmode=disable
-      - POSTGRES_AUTH_DB=postgresql://evo_user:senha_banco_evo@postgres-evo:5432/evolution_db?sslmode=disable
-      - POSTGRES_USERS_DB=postgresql://evo_user:senha_banco_evo@postgres-evo:5432/evolution_db?sslmode=disable
+      - AUTHENTICATION_API_KEY=sua-chave-secura-aqui
+      - TZ=America/Sao_Paulo
       
-      # --- Conexão com Redis ---
+      # --- Banco de Dados ---
+      - POSTGRES_AUTH_DB=postgresql://postgres:password@postgres-evo:5432/evogo_auth?sslmode=disable
+      - POSTGRES_USERS_DB=postgresql://postgres:password@postgres-evo:5432/evogo_auth?sslmode=disable
+      - DATABASE_SAVE_MESSAGES=false
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_CHATS=true
+      - DATABASE_SAVE_DATA_CONTACTS=true
+
+      # --- Redis (REATIVADO) ---
       - CACHE_REDIS_ENABLED=true
       - CACHE_REDIS_URI=redis://redis-evo:6379/1
       - WEBSOCKET_REDIS_ENABLED=true
       - WEBSOCKET_REDIS_URI=redis://redis-evo:6379/1
+
+      # --- Logs e Webhooks ---
+      - WADEBUG=INFO
+      - LOGTYPE=console
       - WEBHOOK_GLOBAL_ENABLED=false
+      - WEBHOOK_EVENTS_ENABLED=false
+      
     volumes:
       - evo_instances_data:/evolution/instances
     networks:
