@@ -8,7 +8,7 @@ services:
     image: postgres:16-alpine
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=mudar_senha_depois # Usei uma senha diferente para forçar o reconhecimento
       - POSTGRES_DB=evogo_auth
     volumes:
       - evo_db_data:/var/lib/postgresql/data
@@ -26,7 +26,7 @@ services:
         delay: 5s
 
   # ==========================================
-  # 2. REDIS (Cache de Alta Performance)
+  # 2. REDIS
   # ==========================================
   redis-evo:
     image: redis:7-alpine
@@ -39,9 +39,6 @@ services:
       placement:
         constraints:
           - node.role == manager
-      restart_policy:
-        condition: on-failure
-        delay: 5s
 
   # ==========================================
   # 3. EVOLUTION API GO
@@ -54,36 +51,29 @@ services:
         protocol: tcp
         mode: host
     environment:
-      # --- Configurações de Servidor ---
       - SERVER_PORT=8080
       - CLIENT_NAME=evolution
-      - GLOBAL_API_KEY=sua-chave-secura-aqui
+      - GLOBAL_API_KEY=sua_chave_global
       - AUTHENTICATION_TYPE=apikey
-      - AUTHENTICATION_API_KEY=sua-chave-secura-aqui
-      - TZ=America/Sao_Paulo
+      - AUTHENTICATION_API_KEY=sua_chave_global
       
-      # --- Banco de Dados ---
-      - POSTGRES_AUTH_DB=postgresql://postgres:password@postgres-evo:5432/evogo_auth?sslmode=disable
-      - POSTGRES_USERS_DB=postgresql://postgres:password@postgres-evo:5432/evogo_auth?sslmode=disable
-      - DATABASE_SAVE_MESSAGES=false
-      - DATABASE_SAVE_DATA_INSTANCE=true
-      - DATABASE_SAVE_DATA_CHATS=true
-      - DATABASE_SAVE_DATA_CONTACTS=true
-
-      # --- Redis (REATIVADO) ---
+      # URIs de conexão atualizadas com a nova senha
+      - POSTGRES_AUTH_DB=postgresql://postgres:mudar_senha_depois@postgres-evo:5432/evogo_auth?sslmode=disable
+      - POSTGRES_USERS_DB=postgresql://postgres:mudar_senha_depois@postgres-evo:5432/evogo_auth?sslmode=disable
+      
       - CACHE_REDIS_ENABLED=true
       - CACHE_REDIS_URI=redis://redis-evo:6379/1
       - WEBSOCKET_REDIS_ENABLED=true
       - WEBSOCKET_REDIS_URI=redis://redis-evo:6379/1
 
-      # --- Logs e Webhooks ---
-      - WADEBUG=INFO
-      - LOGTYPE=console
+      - DATABASE_SAVE_MESSAGES=false
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_CHATS=true
+      - DATABASE_SAVE_DATA_CONTACTS=true
       - WEBHOOK_GLOBAL_ENABLED=false
       - WEBHOOK_EVENTS_ENABLED=false
-      
-    volumes:
-      - evo_instances_data:/evolution/instances
+      - WADEBUG=INFO
+      - LOGTYPE=console
     networks:
       - evolution_internal
     deploy:
@@ -92,9 +82,6 @@ services:
       placement:
         constraints:
           - node.role == manager
-      restart_policy:
-        condition: any
-        delay: 10s
 
 volumes:
   evo_db_data:
