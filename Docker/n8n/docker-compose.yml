@@ -47,7 +47,7 @@ services:
   # 3. N8N MAIN (Interface e Webhooks)
   # ==========================================
   n8n: # <-- CORRIGIDO: Agora alinhado corretamente dentro de 'services'
-    image: docker.n8n.io/n8nio/n8n:2.17.7
+    image: docker.n8n.io/n8nio/n8n:2.18.5
     ports:
       # MODO HOST: Fura o bloqueio do firewall/Ingress e expõe a porta direto no IP da rede local.
       - target: 5678
@@ -94,7 +94,7 @@ services:
   # 4. N8N WORKER (O Executor de Tarefas)
   # ==========================================
   n8n-worker:
-    image: docker.n8n.io/n8nio/n8n:2.17.7
+    image: docker.n8n.io/n8nio/n8n:2.18.5
     command: worker # MUDA O COMPORTAMENTO: Transforma este container em um operário sem interface gráfica.
     environment:
       # O Worker é um "clone" das configurações do Main para conseguir acessar a mesma fila e banco.
