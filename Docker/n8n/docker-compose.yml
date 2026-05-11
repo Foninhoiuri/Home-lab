@@ -16,11 +16,11 @@ services:
       - n8n_internal
     deploy:
       mode: replicated
-      endpoint_mode: dnsrr # CRÍTICO: Evita o atraso de roteamento interno do Swarm, conectando direto.
+      # REMOVIDO: endpoint_mode: dnsrr (Usa o VIP padrão do Swarm, que é mais rápido para achar o DB internamente)
       replicas: 1
       placement:
         constraints:
-          - node.role == manager # Fixa o banco no nó principal para não perder a referência do disco no Proxmox.
+          - node.role == manager
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -28,13 +28,13 @@ services:
   # ==========================================
   # 2. REDIS (O Mensageiro da Fila)
   # ==========================================
-  redis: # <-- CORRIGIDO: Agora alinhado corretamente dentro de 'services'
+  redis:
     image: redis:7-alpine
     networks:
       - n8n_internal
     deploy:
       mode: replicated
-      endpoint_mode: dnsrr # CRÍTICO: Resolve aquele erro de "Lost Redis connection" do n8n.
+      # REMOVIDO: endpoint_mode: dnsrr (Mesmo motivo do Postgres)
       replicas: 1
       placement:
         constraints:
@@ -46,19 +46,15 @@ services:
   # ==========================================
   # 3. N8N MAIN (Interface e Webhooks)
   # ==========================================
-  n8n: # <-- CORRIGIDO: Agora alinhado corretamente dentro de 'services'
+  n8n:
     image: docker.n8n.io/n8nio/n8n:2.18.5
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
+    # REMOVIDO: Bloco dns: [1.1.1.1] para que ele volte a usar o DNS interno do Docker e encontre o Postgres.
     ports:
-      # MODO HOST: Fura o bloqueio do firewall/Ingress e expõe a porta direto no IP da rede local.
       - target: 5678
         published: 5678
         protocol: tcp
         mode: host
     environment:
-      # --- Banco de Dados ---
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
@@ -66,21 +62,18 @@ services:
       - DB_POSTGRESDB_USER=n8n_user
       - DB_POSTGRESDB_PASSWORD=sua_senha_segura
       
-      # --- Modo Fila (Queue Mode) ---
       - N8N_MODE=queue
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
       
-      # --- Segurança e Permissões ---
       - N8N_PROTOCOL=http
-      - N8N_SECURE_COOKIE=false # PERMITE LOGIN: Desativa a exigência de HTTPS/SSL no seu ambiente local.
-      - NODE_FUNCTION_ALLOW_BUILTIN=* # LIBERDADE DE CÓDIGO: Permite usar bibliotecas nativas do Node.js.
-      - NODE_FUNCTION_ALLOW_EXTERNAL=* # LIBERDADE DE CÓDIGO: Permite importar pacotes externos (npm).
+      - N8N_SECURE_COOKIE=false
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
       
-      # IMPORTANTE: A chave DEVE ser idêntica no Main e no Worker para as credenciais funcionarem.
       - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui
-
       
+      # SILENCIA OS ERROS DE REDE DO ADGUARD
       - N8N_METRICS_ENABLED=false
       - N8N_DIAGNOSTICS_ENABLED=false
       
@@ -93,7 +86,6 @@ services:
         constraints:
           - node.role == manager
       restart_policy:
-        # SEGURA A RACE CONDITION: Se o banco demorar a ligar, o n8n tenta de novo ao invés de morrer.
         condition: any
         delay: 10s
 
@@ -102,12 +94,9 @@ services:
   # ==========================================
   n8n-worker:
     image: docker.n8n.io/n8nio/n8n:2.18.5
-    command: worker # MUDA O COMPORTAMENTO: Transforma este container em um operário sem interface gráfica.
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
+    command: worker
+    # REMOVIDO: Bloco dns: [1.1.1.1]
     environment:
-      # O Worker é um "clone" das configurações do Main para conseguir acessar a mesma fila e banco.
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
@@ -119,7 +108,7 @@ services:
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
       
-      - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui # EXATAMENTE A MESMA CHAVE DO MAIN
+      - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui
       - NODE_FUNCTION_ALLOW_BUILTIN=*
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
 
@@ -129,18 +118,14 @@ services:
       - n8n_internal
     deploy:
       mode: replicated
-      # ESCALABILIDADE: Quando tiver fluxos pesados rodando em paralelo, basta subir este número.
       replicas: 1 
       restart_policy:
         condition: any
         delay: 10s
 
-# ==========================================
-# 5. RECURSOS
-# ==========================================
 volumes:
-  n8n_db_data: # O volume persistente gerenciado pelo Docker.
+  n8n_db_data:
 
 networks:
   n8n_internal:
-    driver: overlay # Essencial para o Swarm criar o túnel de comunicação entre os containers.
+    driver: overlay
