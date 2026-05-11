@@ -49,8 +49,8 @@ services:
   n8n: # <-- CORRIGIDO: Agora alinhado corretamente dentro de 'services'
     image: docker.n8n.io/n8nio/n8n:2.18.5
     dns:
-      - 8.8.8.8
       - 1.1.1.1
+      - 8.8.8.8
     ports:
       # MODO HOST: Fura o bloqueio do firewall/Ingress e expõe a porta direto no IP da rede local.
       - target: 5678
@@ -104,8 +104,8 @@ services:
     image: docker.n8n.io/n8nio/n8n:2.18.5
     command: worker # MUDA O COMPORTAMENTO: Transforma este container em um operário sem interface gráfica.
     dns:
-      - 8.8.8.8
       - 1.1.1.1
+      - 8.8.8.8
     environment:
       # O Worker é um "clone" das configurações do Main para conseguir acessar a mesma fila e banco.
       - DB_TYPE=postgresdb
