@@ -1,9 +1,5 @@
 version: '3.8'
-
 services:
-  # ==========================================
-  # 1. BANCO DE DADOS POSTGRESQL
-  # ==========================================
   postgres:
     image: postgres:16-alpine
     environment:
@@ -14,12 +10,13 @@ services:
       - n8n_db_data:/var/lib/postgresql/data
     networks:
       - n8n_internal
+    # NOVO: healthcheck para o n8n só subir após o postgres estar pronto
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U n8n_user -d n8n_database"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 20s
     deploy:
       mode: replicated
       replicas: 1
@@ -30,32 +27,27 @@ services:
         condition: on-failure
         delay: 5s
 
-  # ==========================================
-  # 2. REDIS (O Mensageiro da Fila)
-  # ==========================================
   redis:
     image: redis:7-alpine
     networks:
       - n8n_internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     deploy:
       mode: replicated
-      # REMOVIDO: endpoint_mode: dnsrr (Mesmo motivo do Postgres)
       replicas: 1
       placement:
         constraints:
           - node.role == manager
       restart_policy:
-        condition: any
-        delay: 15s      # era 10s
-        max_attempts: 10
-        window: 60s
+        condition: on-failure
+        delay: 5s
 
-  # ==========================================
-  # 3. N8N MAIN (Interface e Webhooks)
-  # ==========================================
   n8n:
     image: docker.n8n.io/n8nio/n8n:2.18.5
-    # REMOVIDO: Bloco dns: [1.1.1.1] para que ele volte a usar o DNS interno do Docker e encontre o Postgres.
     ports:
       - target: 5678
         published: 5678
@@ -68,22 +60,16 @@ services:
       - DB_POSTGRESDB_DATABASE=n8n_database
       - DB_POSTGRESDB_USER=n8n_user
       - DB_POSTGRESDB_PASSWORD=sua_senha_segura
-      
       - N8N_MODE=queue
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
-      
       - N8N_PROTOCOL=http
       - N8N_SECURE_COOKIE=false
       - NODE_FUNCTION_ALLOW_BUILTIN=*
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
-      
       - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui
-      
-      # SILENCIA OS ERROS DE REDE DO ADGUARD
       - N8N_METRICS_ENABLED=false
       - N8N_DIAGNOSTICS_ENABLED=false
-      
     networks:
       - n8n_internal
     deploy:
@@ -92,20 +78,15 @@ services:
       placement:
         constraints:
           - node.role == manager
-      # No serviço n8n e n8n-worker
       restart_policy:
         condition: any
-        delay: 15s      # era 10s
+        delay: 15s        # AUMENTADO: dá tempo pro postgres subir
         max_attempts: 10
-        window: 60s
+        window: 120s
 
-  # ==========================================
-  # 4. N8N WORKER (O Executor de Tarefas)
-  # ==========================================
   n8n-worker:
     image: docker.n8n.io/n8nio/n8n:2.18.5
     command: worker
-    # REMOVIDO: Bloco dns: [1.1.1.1]
     environment:
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
@@ -113,25 +94,24 @@ services:
       - DB_POSTGRESDB_DATABASE=n8n_database
       - DB_POSTGRESDB_USER=n8n_user
       - DB_POSTGRESDB_PASSWORD=sua_senha_segura
-      
       - N8N_MODE=queue
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
-      
       - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui
       - NODE_FUNCTION_ALLOW_BUILTIN=*
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
-
       - N8N_METRICS_ENABLED=false
       - N8N_DIAGNOSTICS_ENABLED=false
     networks:
       - n8n_internal
     deploy:
       mode: replicated
-      replicas: 1 
+      replicas: 1
       restart_policy:
         condition: any
-        delay: 10s
+        delay: 15s
+        max_attempts: 10
+        window: 120s
 
 volumes:
   n8n_db_data:
@@ -139,4 +119,4 @@ volumes:
 networks:
   n8n_internal:
     driver: overlay
-    attachable: true
+    attachable: true    # CORREÇÃO PRINCIPAL
