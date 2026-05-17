@@ -1,0 +1,14 @@
+n8n-nodes-evolution-api
+n8n-nodes-globals
+n8n-nodes-chat-data
+n8n-nodes-converter-documents
+n8n-nodes-instagram-token
+n8n-nodes-instagram-integrations
+n8n-nodes-caldav-pro
+n8n-nodes-better-ai-agent
+n8n-nodes-chatwoot
+n8n-nodes-evolution-api-media-downloader
+n8n-nodes-upload-post
+n8n-nodes-evo-go
+n8n-nodes-evolution
+n8n-nodes-instagram
