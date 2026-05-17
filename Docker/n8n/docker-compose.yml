@@ -20,7 +20,7 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      endpoint_mode: dnsrr      # <-- ISSO ELIMINA O VIP
+      endpoint_mode: dnsrr
       placement:
         constraints:
           - node.role == manager
@@ -40,7 +40,7 @@ services:
     deploy:
       mode: replicated
       replicas: 1
-      endpoint_mode: dnsrr      # <-- MESMO AQUI
+      endpoint_mode: dnsrr
       placement:
         constraints:
           - node.role == manager
@@ -67,16 +67,15 @@ services:
       - QUEUE_BULL_REDIS_PORT=6379
       - N8N_PROTOCOL=http
       - N8N_SECURE_COOKIE=false
+      - N8N_HOST=0.0.0.0
+      - WEBHOOK_URL=http://192.168.1.200:5678
+      - N8N_EDITOR_BASE_URL=http://192.168.1.200:5678
+      - GENERIC_TIMEZONE=America/Sao_Paulo
       - NODE_FUNCTION_ALLOW_BUILTIN=*
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
       - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui
       - N8N_METRICS_ENABLED=false
       - N8N_DIAGNOSTICS_ENABLED=false
-      - N8N_SECURE_COOKIE=false
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://192.168.1.200:5678
-      - N8N_EDITOR_BASE_URL=http://192.168.1.200:5678
-      - GENERIC_TIMEZONE=America/Sao_Paulo
     networks:
       - n8n_internal
     deploy:
@@ -105,6 +104,7 @@ services:
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
       - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui
+      - GENERIC_TIMEZONE=America/Sao_Paulo
       - NODE_FUNCTION_ALLOW_BUILTIN=*
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
       - N8N_METRICS_ENABLED=false
@@ -130,3 +130,7 @@ networks:
   n8n_internal:
     driver: overlay
     attachable: true
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/24
