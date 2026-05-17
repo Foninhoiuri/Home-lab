@@ -72,6 +72,9 @@ services:
       - N8N_ENCRYPTION_KEY=defina_uma_chave_aleatoria_aqui
       - N8N_METRICS_ENABLED=false
       - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_SECURE_COOKIE=false
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+      - N8N_HOST=0.0.0.0
     networks:
       - n8n_internal
     deploy:
