@@ -14,9 +14,14 @@ services:
       - n8n_db_data:/var/lib/postgresql/data
     networks:
       - n8n_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n_user -d n8n_database"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     deploy:
       mode: replicated
-      # REMOVIDO: endpoint_mode: dnsrr (Usa o VIP padrão do Swarm, que é mais rápido para achar o DB internamente)
       replicas: 1
       placement:
         constraints:
@@ -40,8 +45,10 @@ services:
         constraints:
           - node.role == manager
       restart_policy:
-        condition: on-failure
-        delay: 5s
+        condition: any
+        delay: 15s      # era 10s
+        max_attempts: 10
+        window: 60s
 
   # ==========================================
   # 3. N8N MAIN (Interface e Webhooks)
@@ -85,9 +92,12 @@ services:
       placement:
         constraints:
           - node.role == manager
+      # No serviço n8n e n8n-worker
       restart_policy:
         condition: any
-        delay: 10s
+        delay: 15s      # era 10s
+        max_attempts: 10
+        window: 60s
 
   # ==========================================
   # 4. N8N WORKER (O Executor de Tarefas)
@@ -129,3 +139,4 @@ volumes:
 networks:
   n8n_internal:
     driver: overlay
+    attachable: true
