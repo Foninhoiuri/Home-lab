@@ -62,7 +62,7 @@ services:
       - DB_POSTGRESDB_DATABASE=n8n_database
       - DB_POSTGRESDB_USER=n8n_user
       - DB_POSTGRESDB_PASSWORD=sua_senha_segura
-      - N8N_MODE=queue
+      - EXECUTIONS_MODE=queue
       - QUEUE_BULL_REDIS_HOST=redis
       - QUEUE_BULL_REDIS_PORT=6379
       - N8N_PROTOCOL=http
